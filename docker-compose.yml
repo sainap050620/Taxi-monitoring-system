@@ -1,0 +1,210 @@
+# Define networks
+networks:
+  # Define a network named 'bridge' using the bridge driver
+  bridge:
+    driver: bridge
+
+# Define services
+services:
+  # Redis service
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      bridge:
+        aliases:
+          - redis
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Zookeeper service
+  zookeeper:
+    # Use the latest Zookeeper image from Confluent
+    image: confluentinc/cp-zookeeper:latest
+    # Set hostname and container name for Zookeeper
+    hostname: zookeeper
+    container_name: zookeeper
+    # Publish Zookeeper's client port to the host
+    ports:
+      - "2181:2181"
+    # Set environment variables for Zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    # Connect this service to the 'bridge' network
+    networks:
+      bridge:
+        # Alias this service as 'zookeeper' in the 'bridge' network
+        aliases:
+          - zookeeper
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      
+
+  broker:
+     # Use the Kafka image from Confluent
+    image: confluentinc/cp-kafka
+    # Set hostname and container name for broker
+    hostname: broker
+    container_name: broker
+    # This service depends on the 'zookeeper' service
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    # Set environment variables for Kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    # Connect this service to the 'bridge' network
+    networks:
+      bridge:
+        # Alias this service as 'kafka' in the 'bridge' network
+        aliases:
+          - broker
+    command: 
+      - bash
+      - -c
+      - |
+        # Start the Kafka broker
+        /etc/confluent/docker/run &
+        BROKER_PID=$$!
+        
+        # Wait for the Kafka broker to be ready
+        while ! nc -z localhost 9092; do sleep 1; done
+        
+        # Create the 'taxi' topic
+        kafka-topics --create --topic taxi --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+        kafka-topics --create --topic active_taxi --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+        kafka-topics --create --topic ended_taxi --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+        kafka-topics --create --topic metrics --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+        kafka-topics --create --topic over_speeding --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+        kafka-topics --create --topic avg_speed --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+
+        # Send data to the 'ended_taxi' topic
+        echo '{"ended_trip_count": 0}' | kafka-console-producer --broker-list localhost:9092 --topic ended_taxi
+
+        # Wait for the Kafka broker to exit
+        wait $BROKER_PID
+    healthcheck:
+      test: [ "CMD", "bash", "-c", 'nc -z localhost 9092' ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # flink app service
+  flink-app:
+    build:
+      context: ./flink_app
+    image: taretor/taxi_fleet_flink-app:latest
+    container_name: flink-app-container
+    # This service depends on the 'broker' service
+    depends_on:
+      broker:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+    - "8081:8081"
+    # Connect this service to the 'bridge' network
+    networks:
+    - bridge
+
+  # Kafka producer service
+  kafka-producer:
+    build:
+      context: ./data_provider
+    image: taretor/taxi_fleet_kafka-producer:latest
+    container_name: kafka-producer-container
+    # This service depends on the 'kafka' service
+    depends_on:
+    - flink-app
+    environment:
+      START_TIMESTAMP: '2008-02-02 15:36:08'
+      END_TIMESTAMP: '2008-02-08 23:59:59'
+      FAST_FORWARD_SPEED: 60
+      UNPROCESSED_DATA_FILE_PATH: 'data/taxi_log_2008_by_id.zip'
+      PROCESSED_DATA_FILE_PATH: 'data/taxi_data.pkl'
+      KAFKA_SERVER: 'broker:29092'
+      KAFKA_TOPIC: 'taxi'
+    volumes:
+    - ./volumes/kafka-producer_volume:/kafka_producer/data
+    networks:
+    - bridge
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx1g
+    ports:
+      - 9200:9200
+    networks:
+      bridge:
+        aliases:
+          - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:8.11.1
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - 5601:5601
+    networks:
+      bridge: 
+        aliases:
+          - kibana
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  kafka_elasticsearch_connector:
+    build:
+      context: ./kafka_elasticsearch_connector
+    image: taretor/taxi_fleet_kafka_elasticsearch_connector:latest
+    container_name: kafka_elasticsearch_connector-container
+    depends_on:
+      broker:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    volumes:
+    - ./volumes/kafka_elasticsearch_connector_volume:/kafka_elasticsearch_connector/data
+    networks:
+      - bridge

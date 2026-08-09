@@ -1,0 +1,61 @@
+# docker build -t flink_app_dev_img .
+# docker run -d --network=bd24_project_m8_b_bridge -v C:/Users/arpit/OneDrive/Documents/workspace/bd24_project_m8_b/flink_app:/flink_app --name flink_app_dev_container flink_app_dev_img
+# docker exec -it flink_app_dev_container /bin/sh
+
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic taxi --from-beginning
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic active_taxi --from-beginning
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic ended_taxi --from-beginning
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic metrics --from-beginning
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic over_speeding --from-beginning
+# kafka-console-consumer --bootstrap-server localhost:9092 --topic avg_speed --from-beginning
+
+# /usr/bin/kafka-topics --list --bootstrap-server localhost:9092
+# /usr/bin/kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic taxi
+
+# Create a simple infinite loop to keep the container running
+CMD ["sh", "-c", "while true; do sleep 86400; done"]
+
+
+# backup and restore volumes
+docker volume create bd24_project_m8_b_elasticsearch_data
+
+docker run --rm -v bd24_project_m8_b_elasticsearch_data:/data -v ${pwd}/data:/data ubuntu tar cvf /data/elasticsearch_data.tar /data
+docker run --rm -v bd24_project_m8_b_elasticsearch_data:/data -v ${pwd}/data:/data ubuntu bash -c "cd /data && rm -rf ./* && tar xvf /data/elasticsearch_data.tar --strip 1 && chmod -R a+rw /data"
+
+./backup.sh export
+./backup.sh import
+
+# df = pd.read_pickle(self.processed_data_file_path)
+# return df[df["taxi_id"].isin([1, 2])]
+
+#### Docker file for flink dev emvironment
+
+# Base image with Java 11
+FROM openjdk:11
+
+# Install Python, pip
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip && \
+    ln -s /usr/bin/python3 /usr/bin/python
+
+# Set the working directory
+WORKDIR /flink_app
+
+# Copy only the requirements.txt file
+COPY requirements.txt .
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Remove the requirements.txt file
+RUN rm requirements.txt
+
+# Expose the Flink UI port
+EXPOSE 8081
+
+# Run main.py when the container launches
+CMD ["sh", "-c", "while true; do sleep 86400; done"]
+
+docker pull taretor/taxi_fleet_flink-app:latest
+docker pull taretor/taxi_fleet_kafka-producer:latest
+docker pull taretor/taxi_fleet_kafka_elasticsearch_connector:latest
