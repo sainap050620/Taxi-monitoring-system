@@ -1,62 +1,67 @@
-## Real Time Taxi Monitoring Engine
+# 🚖 Real-Time Taxi Fleet Monitoring Engine
 
-This project provides real-time monitoring and analysis of a fleet of 10,000+ taxis, displaying and updating live data including average speed, current speed, location, and timestamps. As the dashboard is fed live data, the system is capable of notifying and storing information.  The dashboard is designed to help fleet managers and operators efficiently track and manage their vehicles.
+A streaming data platform that replays GPS traces of **10,000+ taxis** and turns them into live fleet metrics: current and average speed, active taxis, over-speeding alerts, geofence violations and completed trips, shown on a **Kibana** dashboard that refreshes every few seconds.
 
-## Installation
-If you already have the necessary tools installed, you can skip step 1.
+*Built as a team of 4 for the **Big Data** module at TU Hamburg.*
 
-### Step 1: Prerequisites
+## 🏗️ Architecture
 
-You need the following programs/tools:
+```
+GPS trace replay ──► Kafka topic "taxi" ──► Apache Flink (PyFlink) ──► Kafka result topics ──► Logstash ──► Elasticsearch ──► Kibana
+ (Python producer)                          │                                                                          dashboard
+                                            └── Redis (per-taxi state)
+```
 
-1. **Git Bash Terminal** - Follow the steps provided [here] https://git-scm.com/downloads .
-2. **Docker** - Follow the installation instructions [here] https://docs.docker.com/engine/install/.
+| Service | Role |
+|---|---|
+| **Kafka producer** (`data_provider/`) | Reads the raw GPS log and replays it into Kafka in event-time order, with a configurable fast-forward factor |
+| **Kafka + Zookeeper** | Message broker; topics `taxi`, `active_taxi`, `metrics`, `over_speeding`, `avg_speed`, `ended_taxi` |
+| **Flink app** (`flink_app/`) | Event-time stream processing with watermarks; writes results back to Kafka |
+| **Redis** | Keeps the latest state per taxi between events |
+| **Logstash connector** (`kafka_elasticsearch_connector/`) | Routes each result topic into its own Elasticsearch index |
+| **Elasticsearch + Kibana** | Storage, search and the live dashboard |
 
-### Step 2: Open Git Bash Terminal
+## ⚙️ Stream Processing Operators
 
-1. **Navigate to the location where you want to set up your project**:
-    ```bash
-    cd PATH_TO_YOUR_WORKSPACE
-    ```
+| Operator | What it computes |
+|---|---|
+| `preprocess` | Cleans the stream and drops physically impossible jumps (> 300 km/h) |
+| `calculate_distance` | Distance between consecutive GPS points (haversine formula) |
+| `calculate_speed` | Current speed per taxi; flags **over-speeding** above 50 km/h |
+| `calculate_avg_speed` | Running average speed per taxi |
+| `active_taxi` | Tracks active taxis and flags those more than 15 km from the city centre (geofence) |
+| `ended_taxi` | Counts completed trips |
 
-2. **Clone the project**:
-    ```bash
-    git clone https://collaborating.tuhh.de/e-19/teaching/bd24_project_m8_b.git
-    ```
+## 🚀 Run It
 
-## Usage
-Before proceeding, ensure that Docker is running.
+**Prerequisites:** Docker with Docker Compose.
 
-### Step 1: Start the Project
+```bash
+git clone https://github.com/sainap050620/Taxi-monitoring-system.git
+cd Taxi-monitoring-system
+docker compose up -d
+```
 
-1. **Open Git Bash Terminal and navigate to the folder where you cloned the project**:
-    ```sh
-    cd PATH_TO_THE_PROJECT
-    ```
+The GPS dataset (`taxi_log_2008_by_id.zip`, Beijing taxi trajectories from February 2008) is **not included** in the repository. Place it in `volumes/kafka-producer_volume/` before starting.
 
-2. **Run the following command**:
-    ```sh
-    docker-compose up -d
-    ```
-    > Starting with Docker Compose v2 (or later versions), you can omit the hyphen and use docker compose up -d instead of docker-compose up -d.
+Then open the Kibana dashboard:
 
-### Step 2: Open the Project
+```
+http://localhost:5601/app/dashboards#/view/aea780f0-1ee2-11ef-a2ca-172534fb526f?embed=true&_g=(refreshInterval:(pause:!f,value:5000),time:(from:now-7d%2Fd,to:now))&hide-filter-bar=true
+```
 
-1. **Open your preferred browser**.
+The Flink web UI is available at `http://localhost:8081`.
 
-2. **Go to the following URL to view the dashboard**:
-    ```sql
-   localhost:5601/app/dashboards#/view/aea780f0-1ee2-11ef-a2ca-172534fb526f?embed=true&_g=(refreshInterval:(pause:!f,value:5000),time:(from:now-7d%2Fd,to:now))&hide-filter-bar=true
-    ```
-    
-### Step 3: Close the project
+Stop everything with:
 
-1. **Inside the same gitbash Terminal run the following command**
-    ```sh
-    docker compose down
-    ```
+```bash
+docker compose down
+```
 
-## License
-This project is licensed under the MIT License. You are free to use, modify, and distribute this software as long as you include the original copyright and license notice in any copy of the software you create or distribute.
+## 🛠️ Tech Stack
 
-**MIT License**
+Python · Apache Kafka · Apache Flink (PyFlink) · Redis · Logstash · Elasticsearch · Kibana · Docker Compose
+
+## 📄 License
+
+MIT License, see [LICENSE](LICENSE).
