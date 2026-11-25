@@ -1,9 +1,9 @@
 # Base image with Java 11
-FROM openjdk:11
+FROM eclipse-temurin:11-jdk-jammy
 
 # Install Python, pip
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python
 
 # Set the working directory

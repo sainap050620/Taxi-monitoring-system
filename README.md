@@ -42,12 +42,19 @@ cd Taxi-monitoring-system
 docker compose up -d
 ```
 
-The GPS dataset (`taxi_log_2008_by_id.zip`, Beijing taxi trajectories from February 2008) is **not included** in the repository. Place it in `volumes/kafka-producer_volume/` before starting.
+The GPS dataset (`taxi_log_2008_by_id.zip`, Beijing taxi trajectories from February 2008) is **not included** in the repository. It is the public [T-Drive sample](https://www.microsoft.com/research/publication/t-drive-trajectory-data-sample/) from Microsoft Research: put the taxi `.txt` files in a zip with that name inside `volumes/kafka-producer_volume/` before starting.
+
+The dashboard definition is in [`kibana/exported_objects.ndjson`](kibana/exported_objects.ndjson). The connector imports it on start, so copy it into place **before** `docker compose up`:
+
+```bash
+mkdir -p volumes/kafka_elasticsearch_connector_volume
+cp kibana/exported_objects.ndjson volumes/kafka_elasticsearch_connector_volume/
+```
 
 Then open the Kibana dashboard:
 
 ```
-http://localhost:5601/app/dashboards#/view/aea780f0-1ee2-11ef-a2ca-172534fb526f?embed=true&_g=(refreshInterval:(pause:!f,value:5000),time:(from:now-7d%2Fd,to:now))&hide-filter-bar=true
+http://localhost:5601/app/dashboards#/view/taxi-fleet-monitor
 ```
 
 The Flink web UI is available at `http://localhost:8081`.
@@ -60,22 +67,25 @@ docker compose down
 
 ## 🎬 Demo
 
-> **Why there is no hosted link:** the platform needs Kafka, Zookeeper, Flink, Redis, Logstash, Elasticsearch and Kibana running together, which does not fit on any free hosting tier. It runs locally with one command (see [Run It](#-run-it)).
+> **Why there is no hosted link:** the platform needs Kafka, Zookeeper, Flink, Redis, Logstash, Elasticsearch and Kibana running together, which does not fit on any free hosting tier. It runs locally with Docker Compose (see [Run It](#-run-it)).
 
 **What you see once it is running** (Kibana dashboard, refreshing every 5 seconds):
 
 | Panel | Shows |
 |---|---|
-| Active taxis | How many taxis within 15 km of the Forbidden City are currently reporting, and which of them are 10 to 15 km out (geofence violations) |
-| Speed | Current and running average speed per taxi |
-| Over-speeding | Taxis above 50 km/h as they happen |
+| Active taxis | Unique taxis within 15 km of the Forbidden City that are currently reporting |
+| Geofence violations | Unique active taxis that are 10 to 15 km from the Forbidden City |
+| Over-speeding events | Number of readings above 50 km/h, plus a timeline of alerts |
+| Total distance driven | Cumulative distance of the whole fleet in km |
 | Completed trips | Running count of ended trips |
+| Average speed over time | Fleet-wide current speed as the stream is processed |
+| Highest average speed | Top 10 taxis by running average speed |
 
 The producer replays Beijing taxi traces from February 2008 faster than real time, so a few minutes of runtime covers hours of fleet activity. Watch the Flink job process the stream at `http://localhost:8081`.
 
-<!-- To add a recording: run the stack, capture the Kibana dashboard as a GIF (for example with Peek or ScreenToGif), save it as docs/demo.gif and add this line here:
-![Kibana dashboard](docs/demo.gif)
--->
+![Live Kibana dashboard](docs/demo.gif)
+
+*Recorded from a real run on a 551-taxi sample of the dataset (one of the T-Drive sample archives). The numbers update live as the stream is processed.*
 
 ## 🛠️ Tech Stack
 

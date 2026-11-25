@@ -25,7 +25,7 @@ services:
   # Zookeeper service
   zookeeper:
     # Use the latest Zookeeper image from Confluent
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.6.1
     # Set hostname and container name for Zookeeper
     hostname: zookeeper
     container_name: zookeeper
@@ -51,7 +51,7 @@ services:
 
   broker:
      # Use the Kafka image from Confluent
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.6.1
     # Set hostname and container name for broker
     hostname: broker
     container_name: broker
