@@ -29,7 +29,7 @@ GPS trace replay ──► Kafka topic "taxi" ──► Apache Flink (PyFlink) �
 | `calculate_distance` | Distance between consecutive GPS points (haversine formula) |
 | `calculate_speed` | Current speed per taxi; flags **over-speeding** above 50 km/h |
 | `calculate_avg_speed` | Running average speed per taxi |
-| `active_taxi` | Tracks active taxis and flags those more than 15 km from the city centre (geofence) |
+| `active_taxi` | Keeps taxis within 15 km of the Forbidden City (farther ones are dropped) and flags those 10 to 15 km out as geofence violations |
 | `ended_taxi` | Counts completed trips |
 
 ## 🚀 Run It
@@ -66,7 +66,7 @@ docker compose down
 
 | Panel | Shows |
 |---|---|
-| Active taxis | How many of the 10,000+ taxis are currently reporting, and which are outside the 15 km geofence |
+| Active taxis | How many taxis within 15 km of the Forbidden City are currently reporting, and which of them are 10 to 15 km out (geofence violations) |
 | Speed | Current and running average speed per taxi |
 | Over-speeding | Taxis above 50 km/h as they happen |
 | Completed trips | Running count of ended trips |
