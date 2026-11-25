@@ -58,6 +58,25 @@ Stop everything with:
 docker compose down
 ```
 
+## 🎬 Demo
+
+> **Why there is no hosted link:** the platform needs Kafka, Zookeeper, Flink, Redis, Logstash, Elasticsearch and Kibana running together, which does not fit on any free hosting tier. It runs locally with one command (see [Run It](#-run-it)).
+
+**What you see once it is running** (Kibana dashboard, refreshing every 5 seconds):
+
+| Panel | Shows |
+|---|---|
+| Active taxis | How many of the 10,000+ taxis are currently reporting, and which are outside the 15 km geofence |
+| Speed | Current and running average speed per taxi |
+| Over-speeding | Taxis above 50 km/h as they happen |
+| Completed trips | Running count of ended trips |
+
+The producer replays Beijing taxi traces from February 2008 faster than real time, so a few minutes of runtime covers hours of fleet activity. Watch the Flink job process the stream at `http://localhost:8081`.
+
+<!-- To add a recording: run the stack, capture the Kibana dashboard as a GIF (for example with Peek or ScreenToGif), save it as docs/demo.gif and add this line here:
+![Kibana dashboard](docs/demo.gif)
+-->
+
 ## 🛠️ Tech Stack
 
 Python · Apache Kafka · Apache Flink (PyFlink) · Redis · Logstash · Elasticsearch · Kibana · Docker Compose
