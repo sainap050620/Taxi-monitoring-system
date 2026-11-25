@@ -69,10 +69,11 @@ docker compose down
 
 > **Why there is no hosted link:** the platform needs Kafka, Zookeeper, Flink, Redis, Logstash, Elasticsearch and Kibana running together, which does not fit on any free hosting tier. It runs locally with Docker Compose (see [Run It](#-run-it)).
 
-**What you see once it is running** (Kibana dashboard, refreshing every 5 seconds):
+**What you see once it is running** (Kibana dashboard, refreshing every 5 seconds). The live map is the centrepiece:
 
 | Panel | Shows |
 |---|---|
+| **Live taxi map** | Every taxi that reported in the last 5 minutes, plotted on a map of Beijing: blue for normal, red for geofence violations (10 to 15 km from the Forbidden City). Refreshes every 5 seconds |
 | Active taxis | Unique taxis within 15 km of the Forbidden City that are currently reporting |
 | Geofence violations | Unique active taxis that are 10 to 15 km from the Forbidden City |
 | Over-speeding events | Number of readings above 50 km/h, plus a timeline of alerts |
@@ -85,7 +86,7 @@ The producer replays Beijing taxi traces from February 2008 faster than real tim
 
 ![Live Kibana dashboard](docs/demo.gif)
 
-*Recorded from a real run on a 551-taxi sample of the dataset (one of the T-Drive sample archives). The numbers update live as the stream is processed.*
+*Recorded from a real run on a 551-taxi sample of the dataset (one of the T-Drive sample archives). Taxis move on the map and the counters update live as the stream is processed. The map's background tiles come from Elastic Maps Service, so the browser needs internet access.*
 
 ## 🛠️ Tech Stack
 
