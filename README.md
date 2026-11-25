@@ -34,24 +34,20 @@ GPS trace replay ──► Kafka topic "taxi" ──► Apache Flink (PyFlink) �
 
 ## 🚀 Run It
 
-**Prerequisites:** Docker with Docker Compose.
+**Prerequisites:** Docker with the Compose plugin, `curl` and `unzip`. About 6 GB of free memory.
 
 ```bash
 git clone https://github.com/sainap050620/Taxi-monitoring-system.git
 cd Taxi-monitoring-system
+./scripts/setup_demo.sh      # downloads the dataset sample and installs the dashboard
 docker compose up -d
 ```
 
-The GPS dataset (`taxi_log_2008_by_id.zip`, Beijing taxi trajectories from February 2008) is **not included** in the repository. It is the public [T-Drive sample](https://www.microsoft.com/research/publication/t-drive-trajectory-data-sample/) from Microsoft Research: put the taxi `.txt` files in a zip with that name inside `volumes/kafka-producer_volume/` before starting.
+`setup_demo.sh` downloads a sample of the public [T-Drive dataset](https://www.microsoft.com/research/publication/t-drive-trajectory-data-sample/) from Microsoft Research (551 taxis, about 8 MB, Beijing, February 2008) and saves it as `volumes/kafka-producer_volume/taxi_log_2008_by_id.zip`. It also copies [`kibana/exported_objects.ndjson`](kibana/exported_objects.ndjson) into place so the connector imports the dashboard on start.
 
-The dashboard definition is in [`kibana/exported_objects.ndjson`](kibana/exported_objects.ndjson). The connector imports it on start, so copy it into place **before** `docker compose up`:
+To use the full dataset instead, zip the taxi `.txt` files under that same name in `volumes/kafka-producer_volume/` before starting.
 
-```bash
-mkdir -p volumes/kafka_elasticsearch_connector_volume
-cp kibana/exported_objects.ndjson volumes/kafka_elasticsearch_connector_volume/
-```
-
-Then open the Kibana dashboard:
+The first start builds the images, so give it a few minutes. Then open the live dashboard:
 
 ```
 http://localhost:5601/app/dashboards#/view/taxi-fleet-monitor
